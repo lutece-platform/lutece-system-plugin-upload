@@ -1,0 +1,48 @@
+<div class="content-box">    
+    <h2>#i18n{upload.manage_upload.titleAddFile}</h2>
+    <form enctype="multipart/form-data" action="jsp/admin/plugins/upload/DoCreateFile.jsp" method="post">
+        <input type="hidden" name="directory" value="${directory}">
+        <p>            
+            #i18n{upload.manage_upload.labelFile}
+            <input type="file" name="file_name" size="60">                       
+            <input type="checkbox" class="checkbox" name="unzip">#i18n{upload.manage_upload.labelDecompress}<br />
+            <em>#i18n{upload.manage_upload.labelWarning}</em>
+        </p>
+        <input type="submit" class="button" value="#i18n{upload.manage_upload.labelAdd}">
+    </form>
+    
+</div>
+<div class="content-box">
+    <div class="highlight-box">
+        <form name="SelectDirectoryForm" action="jsp/admin/plugins/upload/ManageUpload.jsp" method="get">
+            #i18n{upload.manage_upload.labelCurrentDirectory} <@combo name="directory" default_value=directory items=directory_list />
+            <input type="submit" class="button" value="#i18n{upload.manage_upload.changeDirectory}">
+        </form>        
+    </div>
+    <h2>#i18n{upload.manage_upload.titleFilesList} </h2>   
+    <form method="post" action="jsp/admin/plugins/upload/ManageUpload.jsp">
+        <input type="hidden" name="directory" value="${directory}">
+        <@pagination paginator=paginator />
+        <!-- Number of documents per page selector -->
+        #i18n{upload.manage_upload.labelItemsPerPage} :
+        <select name="items_per_page">
+            <#list [ "10" , "20" , "50" , "100" ] as nb>
+            <#if nb_items_per_page = nb >
+            <option selected="selected" value="${nb}">${nb}</option>
+            <#else>
+            <option value="${nb}">${nb}</option>
+            </#if>
+            </#list>
+        </select>                            
+        <input type="submit" class="button" value="#i18n{upload.manage_upload.buttonItemsPerPage}" />
+    </form>      
+    <table>
+        <tr>
+            <th>#i18n{upload.manage_upload.columnTitleName}</th>
+            <th>#i18n{upload.manage_upload.columnTitleSize}</th>
+            <th>#i18n{upload.manage_upload.columnTitleDate}</th>
+            <th>#i18n{upload.manage_upload.columnTitleRemove}</th>
+        </tr>
+        ${files_list}
+    </table>    
+</div>

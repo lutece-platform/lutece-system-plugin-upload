@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<document>
+	<properties>
+		<title>Lutece : Upload</title>
+	</properties>
+	<body>
+		<section name="Projet upload">
+			<p>
+				Allow to upload files directly into the webapp. Configure upload.xml to add/remove directories where you can upload new files.
+			</p>
+			<p>
+				To upload files, zip them with the same directory hierarchy and upload them from the plugin-upload's adminFeature.
+			</p>
+		</section>
+	</body>
+</document>  

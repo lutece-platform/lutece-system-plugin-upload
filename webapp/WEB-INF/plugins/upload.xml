@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="ISO-8859-1"?>
+<plug-in>
+    
+    <!-- Plugin Informations -->
+    <name>upload</name>
+    <class>fr.paris.lutece.portal.service.plugin.PluginDefaultImplementation</class>
+    <version>2.1.1</version>
+    <description>upload.plugin.description</description>
+    <documentation></documentation>
+    <installation></installation>
+    <changes></changes>
+    <user-guide></user-guide>
+    <provider>upload.plugin.provider</provider>
+    <provider-url>http://lutece.paris.fr</provider-url>
+    <icon-url>images/admin/skin/plugins/upload/upload.png</icon-url>
+    <copyright>Copyright 2001-2009 Mairie de Paris</copyright>
+    <core-version-dependency>
+		<min-core-version>2.3.0</min-core-version>
+		<max-core-version></max-core-version>	
+    </core-version-dependency>
+    <db-pool-required>0</db-pool-required>
+    
+    <!-- Administration interface parameters -->
+    <admin-features>
+        <admin-feature>
+            <feature-id>UPLOAD_MANAGEMENT</feature-id>
+            <feature-title>upload.adminFeature.upload_management.name</feature-title>
+            <feature-description>upload.adminFeature.upload_management.description</feature-description>
+            <feature-level>3</feature-level>
+            <feature-url>jsp/admin/plugins/upload/ManageUpload.jsp</feature-url>
+        </admin-feature>
+    </admin-features>
+    
+    <!-- Plugins parameters -->
+    <params>
+        <param>
+            <param-name>directory1</param-name>
+            <param-value>/plugins/upload/</param-value>
+            <param-description>Répertoire de destination des upload</param-description>
+        </param>
+        <param>
+            <param-name>directory2</param-name>
+            <param-value>/js/</param-value>
+            <param-description>Répertoire des fichiers javascripts</param-description>
+        </param>
+        <param>
+            <param-name>directory3</param-name>
+            <param-value>/css/</param-value>
+            <param-description>Répertoire des fichiers css</param-description>
+        </param>
+    </params>
+    
+</plug-in>
