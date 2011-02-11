@@ -17,7 +17,7 @@
 	  <repository>
 	    <id>lutece</id>
 	    <name>luteceRepository</name>
-	    <url>http://dev.lutece.paris.fr/maven_repository</url>
+	    <url>http://dev.lutece.paris.fr/maven_repository/plugin-upload</url>
 	    <layout>default</layout>
 	  </repository>
 	</repositories>
@@ -37,8 +37,8 @@
 		<jiraComponentId>10043</jiraComponentId>
 	</properties>
     <scm>
-        <connection>scm:svn:http://dev.lutece.paris.fr/svn/lutece/portal/trunk/plugins/system</connection>
-        <developerConnection>scm:svn:https://dev.lutece.paris.fr/svn/lutece/portal/trunk/plugins/system</developerConnection>
-        <url>http://dev.lutece.paris.fr/viewvc/portal/trunk/plugins/system</url>
+        <connection>scm:svn:http://dev.lutece.paris.fr/svn/lutece/portal/trunk/plugins/system/plugin-upload</connection>
+        <developerConnection>scm:svn:https://dev.lutece.paris.fr/svn/lutece/portal/trunk/plugins/system/plugin-upload</developerConnection>
+        <url>http://dev.lutece.paris.fr/viewvc/portal/trunk/plugins/system/plugin-upload</url>
     </scm>
 </project>
