@@ -3,7 +3,7 @@
     <!-- Plugin Informations -->
     <name>upload</name>
     <class>fr.paris.lutece.portal.service.plugin.PluginDefaultImplementation</class>
-    <version>2.1.1</version>
+    <version>2.1.2</version>
     <description>upload.plugin.description</description>
     <documentation/>
     <installation/>
@@ -35,17 +35,17 @@
         <param>
             <param-name>directory1</param-name>
             <param-value>/plugins/upload/</param-value>
-            <param-description>Répertoire de destination des upload</param-description>
+            <param-description>RÃ©pertoire de destination des upload</param-description>
         </param>
         <param>
             <param-name>directory2</param-name>
             <param-value>/js/</param-value>
-            <param-description>Répertoire des fichiers javascripts</param-description>
+            <param-description>RÃ©pertoire des fichiers javascripts</param-description>
         </param>
         <param>
             <param-name>directory3</param-name>
             <param-value>/css/</param-value>
-            <param-description>Répertoire des fichiers css</param-description>
+            <param-description>RÃ©pertoire des fichiers css</param-description>
         </param>
     </params>
     
