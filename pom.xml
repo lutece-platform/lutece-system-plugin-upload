@@ -33,8 +33,8 @@
 	
 	<properties>
 		<componentName>upload</componentName>
-		<jiraProjectName>LUTECE</jiraProjectName>
-		<jiraComponentId>10043</jiraComponentId>
+		<jiraProjectName>UPLOAD</jiraProjectName>
+		<jiraComponentId>10176</jiraComponentId>
 	</properties>
     <scm>
         <connection>scm:svn:http://dev.lutece.paris.fr/svn/lutece/portal/trunk/plugins/system/plugin-upload</connection>
