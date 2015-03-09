@@ -53,6 +53,7 @@ import fr.paris.lutece.util.html.Paginator;
 import fr.paris.lutece.util.url.UrlItem;
 
 import org.apache.commons.fileupload.FileItem;
+import org.apache.commons.lang.StringUtils;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
@@ -62,7 +63,6 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.Enumeration;
@@ -350,7 +350,7 @@ public class UploadJspBean extends PluginAdminPageJspBean
             // Is the 'unzip' checkbox checked?
             boolean bUnzip = ( multiRequest.getParameter( PARAMETER_UNZIP ) != null );
 
-            if ( item != null )
+            if ( item != null && !item.getName( ).equals( StringUtils.EMPTY ) )
             {
                 if ( !bUnzip ) // copy the file
                 {
