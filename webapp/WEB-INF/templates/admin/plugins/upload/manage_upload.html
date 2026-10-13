@@ -1,71 +1,60 @@
-<div class="row">
-    <div class="col-xs-12 col-sm-12 col-md-12">
-		<div class="box box-danger">
-			<div class="box-header">
-				<h3 class="box-title">#i18n{upload.manage_upload.titleAddFile}</h3>
-			</div>
-			<div class="box-body">	
-				<form class="form-horizontal" role="form" name="SelectDirectoryForm" action="jsp/admin/plugins/upload/ManageUpload.jsp" method="get">
-					<div class="form-group">
-						<label class="control-label col-xs-12 col-sm-2 col-md-2" for="directory">#i18n{upload.manage_upload.labelCurrentDirectory}</label>
-						<div class="col-xs-12 col-sm-6 col-md-6">
-							<div class="input-group">
-								<@comboWithParams name="directory" default_value=directory additionalParameters="class=\"form-control\"" items=directory_list />
-								 <span class="input-group-btn">
-									<button class="btn btn-default btn-flat" type="submit" ><i class="icon-filter"></i>#i18n{upload.manage_upload.changeDirectory}</button>
-								</span>
-							</div>
-						</div>
-					</div>
-				</form>	
-				<form class="form-horizontal" role="form" enctype="multipart/form-data" action="jsp/admin/plugins/upload/DoCreateFile.jsp" method="post">
-					<fieldset>
-					<legend>#i18n{upload.manage_upload.labelFile}</legend> 
-					<input type="hidden" name="directory" value="${directory}">
-					<div class="form-group">
-						<label class="control-label col-xs-12 col-sm-2 col-md-2">#i18n{upload.manage_upload.labelFile}</label>
-						<div class="col-xs-12 col-sm-6 col-md-6">
-							<input type="file" name="file_name" class="form-control">
-						</div>
-					</div>
-					<div class="form-group">
-						<label class="control-label col-xs-12 col-sm-2 col-md-2 sr-only">#i18n{upload.manage_upload.labelFile}</label>
-						<div class="col-xs-12 col-sm-10 col-md-10">
-							<label class="checkbox">                 
-								<input type="checkbox" name="unzip">
-								#i18n{upload.manage_upload.labelDecompress}
-							</label>
-							<span class="help-block">#i18n{upload.manage_upload.labelWarning}</span>
-						</div>
-					</div>
-					<div class="form-group">
-						<div class="col-xs-12 col-sm-offset-2 col-md-offset-2 col-md-10">
-							<button type="submit" class="btn btn-primary btn-flat">
-								<span class="fa fa-upload"></span>&nbsp;#i18n{upload.manage_upload.labelAdd}
-							</button>
-						</div>
-					</div>
-					</fieldset>
-					<fieldset>
-					<legend>#i18n{upload.manage_upload.titleFilesList}</legend>  
-						<@paginationAdmin paginator=paginator combo=1 />
-						<table class="table table-hover table-condensed">
-							<thead>
-								<tr>
-									<th>#i18n{upload.manage_upload.columnTitleName}</th>
-									<th>#i18n{upload.manage_upload.columnTitleSize}</th>
-									<th>#i18n{upload.manage_upload.columnTitleDate}</th>
-									<th>#i18n{upload.manage_upload.columnTitleRemove}</th>
-								</tr>
-							</thead>
-							<tbody>
-								${files_list}
-							</tbody>
-						</table> 
-						<@paginationAdmin paginator=paginator combo=1 />
-					</fieldset>
-				</form>
-			</div>
-		</div>
-	</div>
-</div>
+<@pageContainer>
+	<@pageColumn>
+		<@pageHeader title='#i18n{upload.manage_upload.pageTitle}'>
+			<@tform method='get' name='select_directory' action='jsp/admin/plugins/upload/ManageUpload.jsp' type='inline'>
+				<@input type='hidden' name='view' value='manageFiles' />
+				<@formGroup labelFor='directory' labelKey='#i18n{upload.manage_upload.labelCurrentDirectory}' hideLabel=['all'] formStyle='inline'>
+					<@inputGroup>
+						<@select name='directory' id='directory' items=directory_list default_value=directory title='#i18n{upload.manage_upload.labelCurrentDirectory}' params='addons' />
+						<@button type='submit' color='primary' title='#i18n{upload.manage_upload.changeDirectory}' buttonIcon='folder-open' hideTitle=['all'] />
+					</@inputGroup>
+				</@formGroup>
+			</@tform>
+			<@button type='button' color='primary' title='#i18n{upload.manage_upload.titleAddFile}' buttonIcon='upload' params='data-bs-toggle="modal" data-bs-target="#addFileModal"' />
+		</@pageHeader>
+		<@messages infos=infos![] errors=errors![] warnings=warnings![] />
+		<#if files_list?has_content>
+			<@manageFeature>
+				<#list files_list as file>
+				<@manageFeatureItem>
+					<@manageFeatureItemColumn auto=true flex=false>
+						<@p class='mb-0'><@icon style=file.directory?then('folder','file') class='me-1' /><strong>${file.name}<#if file.directory>/</#if></strong></@p>
+					</@manageFeatureItemColumn>
+					<@manageFeatureItemColumn auto=true flex=false valign='top'>
+						<@p class='mb-0'>#i18n{upload.manage_upload.columnTitleSize} : <#if file.size lt 1024>${file.size} #i18n{upload.manage_upload.unitByte}<#else>${(file.size / 1024)?string('0.#')} #i18n{upload.manage_upload.unitKilobyte}</#if></@p>
+					</@manageFeatureItemColumn>
+					<@manageFeatureItemColumn auto=true flex=false valign='top'>
+						<@p class='mb-0'>#i18n{upload.manage_upload.columnTitleDate} : ${file.dateLastModified?datetime}</@p>
+					</@manageFeatureItemColumn>
+					<@manageFeatureItemColumn align='end'>
+						<@aButton href='jsp/admin/plugins/upload/ManageUpload.jsp?view=confirmRemoveFile&amp;directory=${directory?url("UTF-8")}&amp;file_name=${file.name?url("UTF-8")}' buttonIcon='trash' title='#i18n{upload.manage_upload.actionDelete}' hideTitle=['all'] color='danger' />
+					</@manageFeatureItemColumn>
+				</@manageFeatureItem>
+				</#list>
+			</@manageFeature>
+			<@paginationAdmin paginator=paginator combo=1 />
+		<#else>
+			<@card>
+				<@empty title='#i18n{upload.manage_upload.noFile}' subtitle='#i18n{upload.manage_upload.noFileHelp}' iconName='folder-off' />
+			</@card>
+		</#if>
+	</@pageColumn>
+</@pageContainer>
+<@modal id='addFileModal'>
+	<@modalHeader modalTitle='#i18n{upload.manage_upload.titleAddFile}' />
+	<@modalBody>
+		<@tform method='post' name='add_file' action='jsp/admin/plugins/upload/ManageUpload.jsp' enctype='multipart/form-data' type='horizontal'>
+			<@input type='hidden' name='action' value='createFile' />
+			<@input type='hidden' name='directory' value=directory />
+			<@formGroup labelFor='file_name' labelKey='#i18n{upload.manage_upload.labelFile}' mandatory=true>
+				<@input type='file' name='file_name' id='file_name' mandatory=true />
+			</@formGroup>
+			<@formGroup helpKey='#i18n{upload.manage_upload.labelWarning}'>
+				<@checkBox name='unzip' id='unzip' labelKey='#i18n{upload.manage_upload.labelDecompress}' orientation='switch' value='1' />
+			</@formGroup>
+			<@formGroup>
+				<@button type='submit' color='primary' title='#i18n{upload.manage_upload.labelAdd}' buttonIcon='upload' />
+			</@formGroup>
+		</@tform>
+	</@modalBody>
+</@modal>
