@@ -1,9 +1,9 @@
 <%@ page errorPage="../../ErrorPage.jsp" %>
+
+${ pageContext.setAttribute( 'strContent', uploadFileJspBean.processController( pageContext.request , pageContext.response ) ) }
+
 <jsp:include page="../../AdminHeader.jsp" />
 
-<jsp:useBean id="upload" scope="session" class="fr.paris.lutece.plugins.upload.web.UploadJspBean" />
-
-<% upload.init( request, upload.RIGHT_MANAGE_UPLOAD ); %>
-<%= upload.getFiles( request ) %>
+${ pageContext.getAttribute( 'strContent' ) }
 
 <%@ include file="../../AdminFooter.jsp" %>

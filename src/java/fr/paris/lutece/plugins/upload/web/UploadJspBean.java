@@ -33,630 +33,312 @@
  */
 package fr.paris.lutece.plugins.upload.web;
 
-import fr.paris.lutece.plugins.upload.util.UploadUtil;
+import fr.paris.lutece.plugins.upload.business.UploadedFile;
+import fr.paris.lutece.plugins.upload.service.UploadService;
 import fr.paris.lutece.portal.service.fileupload.FileUploadService;
+import fr.paris.lutece.portal.service.i18n.I18nService;
 import fr.paris.lutece.portal.service.message.AdminMessage;
 import fr.paris.lutece.portal.service.message.AdminMessageService;
 import fr.paris.lutece.portal.service.plugin.Plugin;
 import fr.paris.lutece.portal.service.plugin.PluginService;
-import fr.paris.lutece.portal.service.template.AppTemplateService;
+import fr.paris.lutece.portal.service.upload.MultipartItem;
 import fr.paris.lutece.portal.service.util.AppLogService;
-import fr.paris.lutece.portal.service.util.AppPathService;
-import fr.paris.lutece.portal.service.util.AppPropertiesService;
-import fr.paris.lutece.portal.web.admin.PluginAdminPageJspBean;
+import fr.paris.lutece.portal.util.mvc.admin.MVCAdminJspBean;
+import fr.paris.lutece.portal.util.mvc.admin.annotations.Controller;
+import fr.paris.lutece.portal.util.mvc.commons.annotations.Action;
+import fr.paris.lutece.portal.util.mvc.commons.annotations.View;
+import fr.paris.lutece.portal.util.mvc.utils.MVCUtils;
+import fr.paris.lutece.portal.web.cdi.mvc.Models;
 import fr.paris.lutece.portal.web.constants.Messages;
 import fr.paris.lutece.portal.web.upload.MultipartHttpServletRequest;
-import fr.paris.lutece.util.ReferenceList;
-import fr.paris.lutece.util.date.DateUtil;
-import fr.paris.lutece.util.html.HtmlTemplate;
-import fr.paris.lutece.util.html.Paginator;
+import fr.paris.lutece.portal.web.util.IPager;
+import fr.paris.lutece.portal.web.util.Pager;
 import fr.paris.lutece.util.url.UrlItem;
 
-import org.apache.commons.fileupload.FileItem;
-import org.apache.commons.lang.StringUtils;
+import jakarta.enterprise.context.RequestScoped;
+import jakarta.inject.Inject;
+import jakarta.inject.Named;
+import jakarta.servlet.http.HttpServletRequest;
 
-import java.io.BufferedInputStream;
-import java.io.BufferedOutputStream;
+import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.text.StringEscapeUtils;
+
 import java.io.File;
-import java.io.FileFilter;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.Enumeration;
-import java.util.HashMap;
-import java.util.Hashtable;
-import java.util.List;
+import java.nio.file.AccessDeniedException;
+import java.nio.file.FileAlreadyExistsException;
 import java.util.Map;
-import java.util.Stack;
-import java.util.zip.ZipEntry;
 import java.util.zip.ZipException;
-import java.util.zip.ZipFile;
-
-import javax.servlet.http.HttpServletRequest;
-
 
 /**
- * This class provides the user interface to manage Library features ( manage, create, modify, remove, change order of
- * contact )
+ * Manages the files of the upload directories
  */
-public class UploadJspBean extends PluginAdminPageJspBean
+@RequestScoped
+@Named( "uploadFileJspBean" )
+@Controller( controllerJsp = UploadJspBean.CONTROLLER_JSP, controllerPath = UploadJspBean.CONTROLLER_PATH, right = UploadJspBean.RIGHT_MANAGE_UPLOAD, securityTokenEnabled = true )
+public class UploadJspBean extends MVCAdminJspBean
 {
-    ////////////////////////////////////////////////////////////////////////////
-    // Constants
-
-    // Right
+    /** The right of the feature */
     public static final String RIGHT_MANAGE_UPLOAD = "UPLOAD_MANAGEMENT";
+    /** The controller JSP */
+    public static final String CONTROLLER_JSP = "ManageUpload.jsp";
+    /** The controller path */
+    public static final String CONTROLLER_PATH = "jsp/admin/plugins/upload/";
 
-    // Templates
+    private static final long serialVersionUID = 4113316366416431212L;
+
     private static final String TEMPLATE_MANAGE_UPLOAD = "admin/plugins/upload/manage_upload.html";
-    private static final String TEMPLATE_FILE_ROW = "admin/plugins/upload/file_row.html";
 
-    // JSP
-    private static final String JSP_DO_REMOVE_FILE = "jsp/admin/plugins/upload/DoRemoveFile.jsp";
+    private static final String VIEW_MANAGE_FILES = "manageFiles";
+    private static final String VIEW_CONFIRM_REMOVE_FILE = "confirmRemoveFile";
+    private static final String ACTION_CREATE_FILE = "createFile";
+    private static final String ACTION_REMOVE_FILE = "removeFile";
 
-    // Parameters
     private static final String PARAMETER_FILE_NAME = "file_name";
     private static final String PARAMETER_DIRECTORY = "directory";
     private static final String PARAMETER_UNZIP = "unzip";
+    private static final String DEFAULT_DIRECTORY = "1";
 
-    // Properties
-    private static final String PLUGIN_PARAM_DIRECTORY = "directory";
     private static final String PROPERTY_PAGE_TITLE_MANAGE_UPLOAD = "upload.manage_upload.pageTitle";
     private static final String PROPERTY_FILES_PER_PAGE = "paginator.upload.files.itemsPerPage";
 
-    // Markers
-    private static final String MARK_FILE_NAME = "file_name";
-    private static final String MARK_FILE_SIZE = "file_size";
-    private static final String MARK_FILE_DATE = "file_date";
     private static final String MARK_FILES_LIST = "files_list";
     private static final String MARK_DIRECTORY = "directory";
     private static final String MARK_DIRECTORY_LIST = "directory_list";
-    private static final String MARK_PAGINATOR = "paginator";
-    private static final String MARK_NB_ITEMS_PER_PAGE = "nb_items_per_page";
 
-    // Message keys
     private static final String MESSAGE_CONFIRM_REMOVE_FILE = "upload.message.confirmRemoveFile";
     private static final String MESSAGE_FILE_EXISTS = "upload.message.fileExists";
+    private static final String MESSAGE_FILE_NOT_FOUND = "upload.message.fileNotFound";
+    private static final String MESSAGE_UNKNOWN_DIRECTORY = "upload.message.unknownDirectory";
     private static final String MESSAGE_ZIP_ERROR = "upload.message.zipError";
+    private static final String MESSAGE_WRITE_ERROR = "upload.message.writeError";
+    private static final String MESSAGE_FORBIDDEN_TYPE = "upload.message.forbiddenType";
+    private static final String WARNING_FILES_REPLACED = "upload.warning.filesReplaced";
+    private static final String INFO_FILE_CREATED = "upload.info.fileCreated";
+    private static final String INFO_ARCHIVE_EXTRACTED = "upload.info.archiveExtracted";
+    private static final String INFO_FILE_REMOVED = "upload.info.fileRemoved";
 
-    //FileFilters used in the getDirectorySize method.
-    private static final FileFilter dirFilter = new FileFilter(  )
-        {
-            public boolean accept( File pathname )
-            {
-                return pathname.isDirectory(  );
-            }
-        };
+    @Inject
+    @Pager( name = "upload.files", listBookmark = MARK_FILES_LIST, defaultItemsPerPage = PROPERTY_FILES_PER_PAGE, baseUrl = CONTROLLER_PATH + CONTROLLER_JSP )
+    private IPager<UploadedFile, UploadedFile> _pager;
 
-    private static final FileFilter fileFilter = new FileFilter(  )
-        {
-            public boolean accept( File pathname )
-            {
-                return ( !pathname.isDirectory(  ) );
-            }
-        };
-
-    private int _nItemsPerPage;
-    private int _nDefaultItemsPerPage;
-    private String _strCurrentPageIndex;
-    private Hashtable<String, String> _htDirectories = new Hashtable<String, String>(  );
-    private ReferenceList _listDirectories = new ReferenceList(  );
+    @Inject
+    private UploadService _uploadService;
 
     /**
-     * Creates a new UploadJspBean object.
+     * Returns the plugin of this feature
+     *
+     * @return the upload plugin
      */
-    public UploadJspBean(  )
+    @Override
+    public Plugin getPlugin( )
     {
+        return PluginService.getPlugin( UploadService.PLUGIN_NAME );
     }
 
     /**
-     * Returns the Files management form
+     * Displays the files of the current directory and the upload form
      *
-     * @param request The Http request
-     * @return The Html form
+     * @param request
+     *            the HTTP request
+     * @param model
+     *            the model
+     * @return the page
      */
-    public String getFiles( HttpServletRequest request )
+    @View( value = VIEW_MANAGE_FILES, defaultView = true, securityTokenAction = ACTION_CREATE_FILE )
+    public String getManageFiles( HttpServletRequest request, Models model )
     {
-        setPageTitleProperty( PROPERTY_PAGE_TITLE_MANAGE_UPLOAD );
+        String strDirectoryIndex = getDirectoryIndex( request );
+        File directory = _uploadService.getDirectory( strDirectoryIndex );
 
-        String strPluginName = this.getPlugin(  ).getName(  );
-
-        if ( strPluginName != null )
+        if ( directory == null )
         {
-            initDirectories( strPluginName );
+            return redirect( request, AdminMessageService.getMessageUrl( request, MESSAGE_UNKNOWN_DIRECTORY, AdminMessage.TYPE_STOP ) );
         }
 
-        String strDirectoryIndex = request.getParameter( PARAMETER_DIRECTORY );
+        UrlItem urlPager = new UrlItem( CONTROLLER_PATH + CONTROLLER_JSP );
+        urlPager.addParameter( MVCUtils.PARAMETER_VIEW, VIEW_MANAGE_FILES );
+        urlPager.addParameter( PARAMETER_DIRECTORY, strDirectoryIndex );
 
-        if ( ( strDirectoryIndex == null ) || ( strDirectoryIndex.equals( "" ) ) )
+        _pager.withBaseUrl( urlPager.getUrl( ) ).withListItem( _uploadService.getFiles( directory ) ).populateModels( request, model, getLocale( ) );
+
+        model.put( MARK_DIRECTORY, strDirectoryIndex );
+        model.put( MARK_DIRECTORY_LIST, _uploadService.getDirectories( ) );
+
+        return getPage( PROPERTY_PAGE_TITLE_MANAGE_UPLOAD, TEMPLATE_MANAGE_UPLOAD, model );
+    }
+
+    /**
+     * Writes the uploaded file in the current directory, or extracts it there when it is a zip archive to unzip, warning about the files the archive replaced
+     *
+     * @param request
+     *            the HTTP request
+     * @return the redirection to the files of the directory
+     */
+    @Action( ACTION_CREATE_FILE )
+    public String doCreateFile( HttpServletRequest request )
+    {
+        String strDirectoryIndex = getDirectoryIndex( request );
+        File directory = _uploadService.getDirectory( strDirectoryIndex );
+        MultipartItem item = ( request instanceof MultipartHttpServletRequest multipartRequest ) ? multipartRequest.getFile( PARAMETER_FILE_NAME ) : null;
+
+        if ( directory == null )
         {
-            strDirectoryIndex = "1";
+            return redirect( request, AdminMessageService.getMessageUrl( request, MESSAGE_UNKNOWN_DIRECTORY, AdminMessage.TYPE_STOP ) );
         }
 
-        String strRelativeDirectory = getDirectory( strDirectoryIndex );
-        String strDirectory = AppPathService.getWebAppPath(  ) + strRelativeDirectory;
-        File directoryPictures = new File( strDirectory );
-        File[] filePictures = directoryPictures.listFiles(  );
-
-        // Creating names array
-        int nFileNumber = filePictures.length;
-        String[] arrayFile = new String[nFileNumber];
-
-        for ( int i = 0; i < nFileNumber; i++ )
+        if ( item == null || StringUtils.isEmpty( item.getName( ) ) )
         {
-            arrayFile[i] = filePictures[i].getName(  );
+            addError( Messages.MANDATORY_FIELDS, getLocale( ) );
+
+            return redirectManageFiles( request, strDirectoryIndex );
         }
 
-        //defines the order of the files
-        File[] screenArrayFile = new File[nFileNumber];
-        String name;
-
-        for ( int i = 0; i < nFileNumber; i++ )
+        try ( InputStream inputStream = item.getInputStream( ) )
         {
-            int numero = i;
-            name = arrayFile[i];
-
-            for ( int a = 0; a < nFileNumber; a++ )
+            if ( request.getParameter( PARAMETER_UNZIP ) != null )
             {
-                String strNameTemp = arrayFile[a];
+                int nReplaced = _uploadService.unzip( directory, inputStream );
 
-                if ( name.toLowerCase(  ).trim(  ).compareTo( strNameTemp.toLowerCase(  ).trim(  ) ) > 0 )
+                if ( nReplaced > 0 )
                 {
-                    name = strNameTemp;
-                    numero = a;
+                    addWarning( I18nService.getLocalizedString( WARNING_FILES_REPLACED, new Object [ ] {
+                            nReplaced
+                    }, getLocale( ) ) );
                 }
-            }
 
-            screenArrayFile[i] = filePictures[numero];
-            arrayFile[numero] = "{";
-        }
-
-        List<String> filesList = new ArrayList<String>(  );
-
-        for ( int i = 0; i < nFileNumber; i++ )
-        {
-            File file = (File) screenArrayFile[i];
-            HashMap modelFile = new HashMap(  );
-
-            if ( file.isDirectory(  ) )
-            {
-                modelFile.put( MARK_FILE_NAME, file.getName(  ) + "\\" );
-
-                // Getting the directory's size
-                modelFile.put( MARK_FILE_SIZE, getDirectorySize( file ) );
+                addInfo( INFO_ARCHIVE_EXTRACTED, getLocale( ) );
             }
             else
             {
-                modelFile.put( MARK_FILE_NAME, file.getName(  ) );
-
-                // Getting the file's size
-                modelFile.put( MARK_FILE_SIZE, file.length(  ) );
+                _uploadService.saveFile( directory, FileUploadService.getFileNameOnly( item ), inputStream );
+                addInfo( INFO_FILE_CREATED, getLocale( ) );
             }
-
-            // Getting the file's date
-            modelFile.put( MARK_FILE_DATE, DateUtil.getDateTimeString( file.lastModified(  ) ) );
-            modelFile.put( MARK_DIRECTORY, strDirectoryIndex );
-
-            HtmlTemplate templateFile = AppTemplateService.getTemplate( TEMPLATE_FILE_ROW, getLocale(  ), modelFile );
-
-            //strRows.append( templateFile.getHtml(  ) );
-            filesList.add( templateFile.getHtml(  ) );
         }
-
-        // Paginator construction
-        _strCurrentPageIndex = Paginator.getPageIndex( request, Paginator.PARAMETER_PAGE_INDEX, _strCurrentPageIndex );
-        _nDefaultItemsPerPage = AppPropertiesService.getPropertyInt( PROPERTY_FILES_PER_PAGE, 10 );
-        _nItemsPerPage = Paginator.getItemsPerPage( request, Paginator.PARAMETER_ITEMS_PER_PAGE, _nItemsPerPage,
-                _nDefaultItemsPerPage );
-
-        UrlItem url = new UrlItem( getHomeUrl( request ) );
-        url.addParameter( PARAMETER_DIRECTORY, strDirectoryIndex );
-
-        Paginator paginator = new Paginator( filesList, _nItemsPerPage, url.getUrl(  ), Paginator.PARAMETER_PAGE_INDEX,
-                _strCurrentPageIndex );
-
-        StringBuffer strRows = new StringBuffer(  );
-        List<String> paginatedFilesList = paginator.getPageItems(  );
-
-        for ( String fileRow : paginatedFilesList )
+        catch( FileAlreadyExistsException e )
         {
-            strRows.append( fileRow );
+            addError( MESSAGE_FILE_EXISTS, getLocale( ) );
         }
-
-        HashMap model = new HashMap(  );
-        model.put( MARK_NB_ITEMS_PER_PAGE, "" + _nItemsPerPage );
-        model.put( MARK_PAGINATOR, paginator );
-        model.put( MARK_FILES_LIST, strRows.toString(  ) );
-        model.put( MARK_DIRECTORY, strDirectoryIndex );
-        model.put( MARK_DIRECTORY_LIST, _listDirectories );
-
-        HtmlTemplate template = AppTemplateService.getTemplate( TEMPLATE_MANAGE_UPLOAD, getLocale(  ), model );
-
-        return getAdminPage( template.getHtml(  ) );
-    }
-
-    /**
-     * Initialize the directories for the plugin. Use the plugin configuration file
-     * @param strPluginName The name of the plugin
-     */
-    private void initDirectories( String strPluginName )
-    {
-        // Reset lists
-        _htDirectories.clear(  );
-        _listDirectories.clear(  );
-
-        // Gets plugin's parameters
-        Plugin plugin = PluginService.getPlugin( strPluginName );
-        Map<String, String> htParams = plugin.getParams(  );
-        int i = 1;
-
-        while ( true )
+        catch( AccessDeniedException e )
         {
-            String strKey = PLUGIN_PARAM_DIRECTORY + i;
-            String strDirectory = htParams.get( strKey );
-
-            if ( strDirectory == null )
-            {
-                break;
-            }
-
-            _htDirectories.put( strKey, strDirectory );
-            _listDirectories.addItem( i, strDirectory );
-            i++;
+            addError( MESSAGE_FORBIDDEN_TYPE, getLocale( ) );
         }
+        catch( ZipException e )
+        {
+            AppLogService.error( "Error opening zip file", e );
+            addError( MESSAGE_ZIP_ERROR, getLocale( ) );
+        }
+        catch( IOException e )
+        {
+            AppLogService.error( e.getMessage( ), e );
+            addError( MESSAGE_WRITE_ERROR, getLocale( ) );
+        }
+
+        return redirectManageFiles( request, strDirectoryIndex );
     }
 
     /**
-     * Get the directory in the map odf the directories read in the plugin configuration file
-     * @param strDirectoryIndex The index of Directory
-     * @return The Key of The Directory Index
-     */
-    private String getDirectory( String strDirectoryIndex )
-    {
-        String strKey = PLUGIN_PARAM_DIRECTORY + strDirectoryIndex;
-
-        return _htDirectories.get( strKey );
-    }
-
-    /**
-     * Process file upload
+     * Asks the confirmation of the removal of a file
      *
-     * @param request Http request
-     * @return Html form
+     * @param request
+     *            the HTTP request
+     * @return the redirection to the confirmation message
      */
-    public String doCreateFile( HttpServletRequest request )
+    @View( value = VIEW_CONFIRM_REMOVE_FILE, securityTokenAction = ACTION_REMOVE_FILE )
+    public String getConfirmRemoveFile( HttpServletRequest request )
     {
-        String strDirectoryIndex = null;
+        String strDirectoryIndex = getDirectoryIndex( request );
+        String strFileName = getFileName( request );
+        File directory = _uploadService.getDirectory( strDirectoryIndex );
+
+        if ( directory == null || _uploadService.resolve( directory, strFileName ) == null )
+        {
+            return redirect( request, AdminMessageService.getMessageUrl( request, MESSAGE_FILE_NOT_FOUND, AdminMessage.TYPE_STOP ) );
+        }
+
+        UrlItem url = new UrlItem( getActionUrl( ACTION_REMOVE_FILE ) );
+        url.addParameter( PARAMETER_DIRECTORY, strDirectoryIndex );
+        url.addParameter( PARAMETER_FILE_NAME, strFileName );
+
+        return redirect( request, AdminMessageService.getMessageUrl( request, MESSAGE_CONFIRM_REMOVE_FILE, new Object [ ] {
+                strFileName
+        }, url.getUrl( ), AdminMessage.TYPE_CONFIRMATION ) );
+    }
+
+    /**
+     * Removes a file or a directory with its content
+     *
+     * @param request
+     *            the HTTP request
+     * @return the redirection to the files of the directory
+     */
+    @Action( ACTION_REMOVE_FILE )
+    public String doRemoveFile( HttpServletRequest request )
+    {
+        String strDirectoryIndex = getDirectoryIndex( request );
+        File directory = _uploadService.getDirectory( strDirectoryIndex );
+
+        if ( directory == null )
+        {
+            return redirect( request, AdminMessageService.getMessageUrl( request, MESSAGE_UNKNOWN_DIRECTORY, AdminMessage.TYPE_STOP ) );
+        }
 
         try
         {
-            MultipartHttpServletRequest multiRequest = (MultipartHttpServletRequest) request;
-            FileItem item = multiRequest.getFile( PARAMETER_FILE_NAME );
-
-            // The index and value of the directory combo in the form
-            strDirectoryIndex = multiRequest.getParameter( PARAMETER_DIRECTORY );
-
-            String strRelativeDirectory = getDirectory( strDirectoryIndex );
-
-            // The absolute path of the target directory
-            String strDestDirectory = AppPathService.getWebAppPath(  ) + strRelativeDirectory;
-
-            // List the files in the target directory
-            File[] existingFiles = ( new File( strDestDirectory ) ).listFiles(  );
-
-            // Is the 'unzip' checkbox checked?
-            boolean bUnzip = ( multiRequest.getParameter( PARAMETER_UNZIP ) != null );
-
-            if ( item != null && !item.getName( ).equals( StringUtils.EMPTY ) )
+            if ( _uploadService.remove( directory, getFileName( request ) ) )
             {
-                if ( !bUnzip ) // copy the file
-                {
-                    AppLogService.debug( "copying the file" );
-
-                    // Getting downloadFile's name
-                    String strNameFile = FileUploadService.getFileNameOnly( item );
-
-                    // Clean name
-                    String strClearName = UploadUtil.cleanFileName( strNameFile );
-
-                    // Checking duplicate
-                    if ( duplicate( strClearName, existingFiles ) )
-                    {
-                        return AdminMessageService.getMessageUrl( request, MESSAGE_FILE_EXISTS, AdminMessage.TYPE_STOP );
-                    }
-
-                    // Move the file to the target directory
-                    File destFile = new File( strDestDirectory, strClearName );
-
-                    FileOutputStream fos = new FileOutputStream( destFile );
-                    fos.flush(  );
-                    fos.write( item.get(  ) );
-                    fos.close(  );
-                }
-                else // unzip the file
-                {
-                    AppLogService.debug( "unzipping the file" );
-
-                    ZipFile zipFile;
-
-                    try
-                    {
-                        // Create a temporary file with result of getTime() as unique file name
-                        File tempFile = File.createTempFile( Long.toString( ( new Date(  ) ).getTime(  ) ), ".zip" );
-                        // Delete temp file when program exits.
-                        tempFile.deleteOnExit(  );
-
-                        FileOutputStream fos = new FileOutputStream( tempFile );
-                        fos.flush(  );
-                        fos.write( item.get(  ) );
-                        fos.close(  );
-                        zipFile = new ZipFile( tempFile );
-                    }
-                    catch ( ZipException ze )
-                    {
-                        AppLogService.error( "Error opening zip file", ze );
-
-                        return AdminMessageService.getMessageUrl( request, MESSAGE_ZIP_ERROR, AdminMessage.TYPE_STOP );
-                    }
-
-                    // Each zipped file is indentified by a zip entry :
-                    Enumeration zipEntries = zipFile.entries(  );
-
-                    while ( zipEntries.hasMoreElements(  ) )
-                    {
-                        ZipEntry zipEntry = (ZipEntry) zipEntries.nextElement(  );
-
-                        // Clean the name :
-                        String strZippedName = zipEntry.getName(  );
-                        String strClearName = UploadUtil.cleanFilePath( strZippedName );
-
-                        if ( strZippedName.equals( strClearName ) )
-                        {
-                            // The unzipped file :
-                            File destFile = new File( strDestDirectory, strClearName );
-
-                            // Create the parent directory structure if needed :
-                            destFile.getParentFile(  ).mkdirs(  );
-
-                            if ( !zipEntry.isDirectory(  ) ) // don't unzip directories
-                            {
-                                AppLogService.debug( "unzipping " + strZippedName + " to " + destFile.getName(  ) );
-
-                                // InputStream from zipped data
-                                InputStream inZipStream = zipFile.getInputStream( zipEntry );
-
-                                // OutputStream to the destination file
-                                OutputStream outDestStream = new FileOutputStream( destFile );
-
-                                // Helper method to copy data
-                                copyStream( inZipStream, outDestStream );
-
-                                inZipStream.close(  );
-                                outDestStream.close(  );
-                            }
-                            else
-                            {
-                                AppLogService.debug( "skipping directory " + strZippedName );
-                            }
-                        }
-                        else
-                        {
-                            AppLogService.debug( "skipping accented file " + strZippedName );
-                        }
-                    }
-                }
+                addInfo( INFO_FILE_REMOVED, getLocale( ) );
             }
             else
             {
-                return AdminMessageService.getMessageUrl( request, Messages.MANDATORY_FIELDS, AdminMessage.TYPE_STOP );
+                addError( MESSAGE_FILE_NOT_FOUND, getLocale( ) );
             }
         }
-        catch ( IOException e )
+        catch( IOException e )
         {
-            AppLogService.error( e.getMessage(  ), e );
+            AppLogService.error( e.getMessage( ), e );
+            addError( MESSAGE_WRITE_ERROR, getLocale( ) );
         }
 
-        // Returns upload management page
-        UrlItem url = new UrlItem( getHomeUrl( request ) );
-
-        if ( strDirectoryIndex != null )
-        {
-            url.addParameter( PARAMETER_DIRECTORY, strDirectoryIndex );
-        }
-
-        return url.getUrl(  );
+        return redirectManageFiles( request, strDirectoryIndex );
     }
 
     /**
-     * Check if file is already in library
+     * Returns the index of the directory the request names
      *
-     * @param strFileName The name of the file to upload
-     * @param repContent The name of the directory
-     * @return The result (boolean)
+     * @param request
+     *            the HTTP request
+     * @return the index, the first directory when the request names none
      */
-    private boolean duplicate( String strFileName, File[] repContent )
+    private static String getDirectoryIndex( HttpServletRequest request )
     {
-        boolean duplicate = false;
-
-        for ( int i = 0; i < repContent.length; i++ )
-        {
-            if ( repContent[i].getName(  ).equals( strFileName ) )
-            {
-                duplicate = true;
-            }
-        }
-
-        return duplicate;
+        return StringUtils.defaultIfEmpty( request.getParameter( PARAMETER_DIRECTORY ), DEFAULT_DIRECTORY );
     }
 
     /**
-     * Returns the confirmation to remove the file
+     * Returns the name of the file the request names, as typed
      *
-     * @param request The Http request
-     * @return the confirmation page
+     * @param request
+     *            the HTTP request
+     * @return the file name, null when the request names none
      */
-    public String getConfirmRemoveFile( HttpServletRequest request )
+    private static String getFileName( HttpServletRequest request )
     {
-        UrlItem url = new UrlItem( JSP_DO_REMOVE_FILE );
-        url.addParameter( PARAMETER_DIRECTORY, request.getParameter( PARAMETER_DIRECTORY ) );
-        url.addParameter( PARAMETER_FILE_NAME, request.getParameter( PARAMETER_FILE_NAME ) );
-
-        return AdminMessageService.getMessageUrl( request, MESSAGE_CONFIRM_REMOVE_FILE, url.getUrl(  ),
-            AdminMessage.TYPE_CONFIRMATION );
+        return StringEscapeUtils.unescapeHtml4( request.getParameter( PARAMETER_FILE_NAME ) );
     }
 
     /**
-     * Process image's deleting
+     * Redirects to the files of a directory
      *
-     * @param request Http request
-     * @return The library management page url
+     * @param request
+     *            the HTTP request
+     * @param strDirectoryIndex
+     *            the index of the directory
+     * @return the redirection
      */
-    public String doRemoveFile( HttpServletRequest request )
+    private String redirectManageFiles( HttpServletRequest request, String strDirectoryIndex )
     {
-        String strDirectoryIndex = request.getParameter( PARAMETER_DIRECTORY );
-        String strRelativeDirectory = getDirectory( strDirectoryIndex );
-        String strDir = AppPathService.getWebAppPath(  ) + strRelativeDirectory;
-        String strNameFile = request.getParameter( PARAMETER_FILE_NAME );
-
-        // Deleting downloadFile physically
-        File downloadFile = new File( strDir, strNameFile );
-
-        if ( downloadFile.isDirectory(  ) )
-        {
-            deleteDirectory( downloadFile );
-        }
-        else
-        {
-            downloadFile.delete(  );
-        }
-
-        // Returns upload management page url
-        UrlItem url = new UrlItem( getHomeUrl( request ) );
-
-        if ( strDirectoryIndex != null )
-        {
-            url.addParameter( PARAMETER_DIRECTORY, strDirectoryIndex );
-        }
-
-        return url.getUrl(  );
-    }
-
-    /**
-     * Copies data from an input stream to an output stream.
-     * @param inStream The input stream
-     * @param outStream The output stream
-     * @throws IOException If an I/O error occurs
-     */
-    private static void copyStream( InputStream inStream, OutputStream outStream )
-        throws IOException
-    {
-        BufferedInputStream inBufferedStream = new BufferedInputStream( inStream );
-        BufferedOutputStream outBufferedStream = new BufferedOutputStream( outStream );
-
-        int nByte = 0;
-
-        while ( ( nByte = inBufferedStream.read(  ) ) > -1 )
-        {
-            outBufferedStream.write( nByte );
-        }
-
-        outBufferedStream.close(  );
-        inBufferedStream.close(  );
-    }
-
-    /**
-     * Returns the total size of a directory.
-     * @param directory The directory
-     * @return The total size
-     */
-    private static long getDirectorySize( File directory )
-    {
-        long lResult = 0;
-
-        // We use a Stack (LIFO) to keep track of the unprocessed directories
-        Stack<File> dirsToProcess = new Stack<File>(  );
-
-        // The stack is initialized with the main directory
-        dirsToProcess.push( directory );
-
-        // Loop until all directories have been processed
-        while ( !dirsToProcess.empty(  ) )
-        {
-            // Get a new directory from the stack
-            File currentDir = dirsToProcess.pop(  );
-
-            // Don't forget the directory's own size!
-            lResult += currentDir.length(  );
-
-            // Add the local files' size to the global size
-            File[] files = currentDir.listFiles( fileFilter );
-
-            for ( int i = 0; i < files.length; i++ )
-            {
-                lResult += files[i].length(  );
-            }
-
-            // Add the sub-directories to the stack
-            File[] subDirs = currentDir.listFiles( dirFilter );
-
-            for ( int i = 0; i < subDirs.length; i++ )
-            {
-                dirsToProcess.push( subDirs[i] );
-            }
-        }
-
-        return lResult;
-    }
-
-    /**
-     * Deletes a directory recursively.
-     *
-     * @param directory The directory to delete
-     */
-    private static void deleteDirectory( File directory )
-    {
-        // We use a Stack (LIFO) to keep track of the directories to delete
-        Stack<File> dirsToDelete = new Stack<File>(  );
-
-        // The stack is initialized with the main directory
-        dirsToDelete.push( directory );
-
-        // Loop until all directories have been deleted
-        while ( !dirsToDelete.empty(  ) )
-        {
-            // Look at the directory on top of the stack (don't remove it!)
-            File currentDir = (File) dirsToDelete.peek(  );
-
-            // Are there any subdirectories?
-            File[] subDirs = currentDir.listFiles( dirFilter );
-
-            if ( subDirs.length > 0 )
-            {
-                // If so, add them to the stack
-                for ( int i = 0; i < subDirs.length; i++ )
-                {
-                    dirsToDelete.push( subDirs[i] );
-                }
-            }
-            else
-            {
-                // If not, delete all files in the directory
-                File[] files = currentDir.listFiles( fileFilter );
-
-                for ( int i = 0; i < files.length; i++ )
-                {
-                    files[i].delete(  );
-                }
-
-                // Then delete the directory
-                currentDir.delete(  );
-
-                // Then remove the directory from the stack
-                dirsToDelete.pop(  );
-            }
-        }
+        return redirect( request, VIEW_MANAGE_FILES, Map.of( PARAMETER_DIRECTORY, strDirectoryIndex ) );
     }
 }
